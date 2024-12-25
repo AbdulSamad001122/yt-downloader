@@ -26,10 +26,10 @@ def list_formats(url):
         return f"Unexpected error: {e}"
 
 # Function to download the video with progress tracking
-def download_video(url, format_id):
-    # Set the path for the Downloads folder
-    downloads_folder = os.path.expanduser('~\\Downloads\\output.mp4')  # Windows
-    # For Mac/Linux, use: downloads_folder = os.path.expanduser('~/Downloads/output.mp4')
+def download_video(url, format_id, output_filename):
+    # Set the path for the Downloads folder with the custom filename
+    downloads_folder = os.path.expanduser(f'~\\Downloads\\{output_filename}.mp4')  # Windows
+    # For Mac/Linux, use: downloads_folder = os.path.expanduser(f'~/Downloads/{output_filename}.mp4')
     
     # Create a Streamlit progress bar
     progress_bar = st.progress(0)
@@ -38,20 +38,21 @@ def download_video(url, format_id):
         # Check if 'total_bytes' is available, otherwise handle it gracefully
         if d['status'] == 'downloading':
             if 'total_bytes' in d and d['total_bytes'] > 0:
-                percent = d['downloaded_bytes'] / d['total_bytes'] * 100
+                # Ensure the progress is between 0 and 100
+                percent = min(max(d['downloaded_bytes'] / d['total_bytes'] * 100, 0), 100)
                 progress_bar.progress(percent)
         elif d['status'] == 'finished':
             progress_bar.progress(100)
     
     try:
         opts = {
-            'outtmpl': downloads_folder,  # Save video to Downloads folder
+            'outtmpl': downloads_folder,  # Save video to Downloads folder with custom filename
             'format': format_id,          # Download the specified format ID
             'progress_hooks': [progress_hook],  # Hook to track download progress
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
-        return "Download completed successfully!"
+        return f"Download completed successfully! File saved as {output_filename}.mp4"
     except yt_dlp.utils.DownloadError as e:
         return f"Download error: {e}"
     except Exception as e:
@@ -78,12 +79,16 @@ if url:
 
         # Select format
         format_id = st.text_input("Enter the Format ID to download")
+
+        # Ask for custom output filename
+        output_filename = st.text_input("Enter the desired output filename (without extension)")
+
         if st.button("Download"):
-            if format_id:
-                result = download_video(url, format_id)
+            if format_id and output_filename:
+                result = download_video(url, format_id, output_filename)
                 if "successfully" in result.lower():
                     st.success(result)
                 else:
                     st.error(result)
             else:
-                st.error("Please enter a valid Format ID.")
+                st.error("Please enter a valid Format ID and output filename.")
