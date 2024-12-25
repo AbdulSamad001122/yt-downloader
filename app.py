@@ -1,6 +1,3 @@
-# new update
-
-
 import streamlit as st
 import yt_dlp
 import os
@@ -41,11 +38,11 @@ def download_video(url, format_id, output_filename):
         # Check if 'total_bytes' is available, otherwise handle it gracefully
         if d['status'] == 'downloading':
             if 'total_bytes' in d and d['total_bytes'] > 0:
-                # Ensure the progress is between 0 and 100
-                percent = min(max(d['downloaded_bytes'] / d['total_bytes'] * 100, 0), 100)
-                progress_bar.progress(percent)
+                # Ensure the progress is between 0 and 1
+                progress = min(max(d['downloaded_bytes'] / d['total_bytes'], 0), 1)
+                progress_bar.progress(progress)
         elif d['status'] == 'finished':
-            progress_bar.progress(100)
+            progress_bar.progress(1.0)  # Mark progress as complete
     
     try:
         opts = {
