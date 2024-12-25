@@ -1,11 +1,15 @@
 import streamlit as st
 import yt_dlp
 import os
+import subprocess
 
 # Function to list available formats
 def list_formats(url):
     try:
-        opts = {'listformats': True}
+        opts = {
+            'ffmpeg_location': r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\ffmpeg-n7.1-latest-win64-lgpl-7.1\bin\ffmpeg.exe",  # Specify your ffmpeg path here
+            'listformats': True
+        }
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = [
@@ -25,29 +29,74 @@ def list_formats(url):
     except Exception as e:
         return f"Unexpected error: {e}"
 
-# Function to download the video
+# Function to download and merge video and audio
 def download_video(url, format_id, output_filename):
     # Save file in the app's working directory
-    downloads_folder = os.path.join(os.getcwd(), f"{output_filename}.mp4")
+    downloads_folder_video = os.path.join(os.getcwd(), f"{output_filename}_video.mp4")
+    downloads_folder_audio = os.path.join(os.getcwd(), f"{output_filename}_audio.mp4")
     progress_bar = st.progress(0)
 
     def progress_hook(d):
+        # Ensuring the progress value is between 0.0 and 1.0
         if d['status'] == 'downloading':
-            if 'total_bytes' in d and d['total_bytes'] > 0:
-                progress = min(max(d['downloaded_bytes'] / d['total_bytes'], 0), 1)
-                progress_bar.progress(progress)
+            total = d.get('total_bytes', 1)
+            downloaded = d.get('downloaded_bytes', 0)
+            progress = downloaded / total if total > 0 else 0
+            progress = max(0.0, min(1.0, progress))  # Ensure it's within 0.0 to 1.0
+            progress_bar.progress(progress)
         elif d['status'] == 'finished':
             progress_bar.progress(1.0)
 
     try:
-        opts = {
-            'outtmpl': downloads_folder,
-            'format': format_id,
+        # Download Video
+        opts_video = {
+            'ffmpeg_location': r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\ffmpeg-n7.1-latest-win64-lgpl-7.1\bin\ffmpeg.exe",  # Specify your ffmpeg path here
+            'outtmpl': downloads_folder_video,
+            'format': f"{format_id}",
             'progress_hooks': [progress_hook],
         }
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
-        return downloads_folder
+
+        # Download Audio
+        opts_audio = {
+            'ffmpeg_location': r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\ffmpeg-n7.1-latest-win64-lgpl-7.1\bin\ffmpeg.exe",  # Specify your ffmpeg path here
+            'outtmpl': downloads_folder_audio,
+            'format': 'bestaudio/best',
+            'progress_hooks': [progress_hook],
+        }
+
+        # Download video and audio separately
+        with yt_dlp.YoutubeDL(opts_video) as ydl_video:
+            ydl_video.download([url])
+
+        with yt_dlp.YoutubeDL(opts_audio) as ydl_audio:
+            ydl_audio.download([url])
+
+        # Merge the video and audio using ffmpeg
+        output_file = os.path.join(os.getcwd(), f"{output_filename}.mp4")
+        ffmpeg_command = [
+            opts_video["ffmpeg_location"],
+            "-i", downloads_folder_video,
+            "-i", downloads_folder_audio,
+            "-c:v", "copy", 
+            "-c:a", "aac",
+            "-strict", "experimental",
+            output_file
+        ]
+        
+        # Run the ffmpeg command and capture the output and error
+        process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        # Check for errors in ffmpeg output
+        if process.returncode != 0:
+            error_message = stderr.decode()
+            return f"FFmpeg Error: {error_message}"
+
+        # Cleanup temporary video and audio files
+        os.remove(downloads_folder_video)
+        os.remove(downloads_folder_audio)
+
+        return output_file
     except yt_dlp.utils.DownloadError as e:
         return f"Download error: {e}"
     except Exception as e:
