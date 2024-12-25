@@ -16,8 +16,8 @@ def list_formats(url):
                     "filesize": fmt.get('filesize', "Unknown"),
                     "ext": fmt['ext']
                 }
-                for fmt in info['formats']
-                if fmt['ext'] == 'mp4'
+                for fmt in info.get('formats', [])
+                if fmt.get('ext') == 'mp4'
             ]
             return formats
     except yt_dlp.utils.DownloadError as e:
@@ -25,70 +25,71 @@ def list_formats(url):
     except Exception as e:
         return f"Unexpected error: {e}"
 
-# Function to download the video with progress tracking
+# Function to download the video
 def download_video(url, format_id, output_filename):
-    # Set the path for the Downloads folder with the custom filename
-    downloads_folder = os.path.expanduser(f'~\\Downloads\\{output_filename}.mp4')  # Windows
-    # For Mac/Linux, use: downloads_folder = os.path.expanduser(f'~/Downloads/{output_filename}.mp4')
-    
-    # Create a Streamlit progress bar
+    # Save file in the app's working directory
+    downloads_folder = os.path.join(os.getcwd(), f"{output_filename}.mp4")
     progress_bar = st.progress(0)
-    
+
     def progress_hook(d):
-        # Check if 'total_bytes' is available, otherwise handle it gracefully
         if d['status'] == 'downloading':
             if 'total_bytes' in d and d['total_bytes'] > 0:
-                # Ensure the progress is between 0 and 1
                 progress = min(max(d['downloaded_bytes'] / d['total_bytes'], 0), 1)
                 progress_bar.progress(progress)
         elif d['status'] == 'finished':
-            progress_bar.progress(1.0)  # Mark progress as complete
-    
+            progress_bar.progress(1.0)
+
     try:
         opts = {
-            'outtmpl': downloads_folder,  # Save video to Downloads folder with custom filename
-            'format': format_id,          # Download the specified format ID
-            'progress_hooks': [progress_hook],  # Hook to track download progress
+            'outtmpl': downloads_folder,
+            'format': format_id,
+            'progress_hooks': [progress_hook],
         }
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([url])
-        return f"Download completed successfully! File saved as {output_filename}.mp4"
+        return downloads_folder
     except yt_dlp.utils.DownloadError as e:
         return f"Download error: {e}"
     except Exception as e:
         return f"Unexpected error: {e}"
 
-# Streamlit application
+# Streamlit app
 st.title("YouTube Video Downloader")
 
-# Input URL
 url = st.text_input("Enter the YouTube URL")
 
 if url:
     st.write("Fetching video formats...")
     formats = list_formats(url)
 
-    # Check if formats were fetched successfully
-    if isinstance(formats, str):  # Error message returned
+    if isinstance(formats, str):  # Handle errors
         st.error(formats)
-    else:
-        # Display available formats
+    elif formats:  # Display available formats if fetched successfully
         st.write("Available formats:")
         for fmt in formats:
-            st.write(f"ID: {fmt['id']} | Resolution: {fmt['resolution']} | FPS: {fmt['fps']} | Filesize: {fmt['filesize']}")
+            st.write(
+                f"ID: {fmt['id']} | Resolution: {fmt['resolution']} | FPS: {fmt['fps']} | Filesize: {fmt['filesize']} | Extension: {fmt['ext']}"
+            )
 
-        # Select format
+        # Input fields for format and filename
         format_id = st.text_input("Enter the Format ID to download")
-
-        # Ask for custom output filename
         output_filename = st.text_input("Enter the desired output filename (without extension)")
 
         if st.button("Download"):
             if format_id and output_filename:
                 result = download_video(url, format_id, output_filename)
-                if "successfully" in result.lower():
-                    st.success(result)
+                if os.path.exists(result):
+                    st.success("Download completed successfully! Use the button below to save your file.")
+                    with open(result, "rb") as file:
+                        st.download_button(
+                            label="Download Video",
+                            data=file,
+                            file_name=f"{output_filename}.mp4",
+                            mime="video/mp4"
+                        )
                 else:
-                    st.error(result)
+                    st.error(f"An error occurred: {result}")
             else:
-                st.error("Please enter a valid Format ID and output filename.")
+                st.error("Please enter both a valid Format ID and a filename.")
+    else:
+        st.warning("No formats found. Please check the URL or try another video.")
