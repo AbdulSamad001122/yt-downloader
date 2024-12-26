@@ -2,46 +2,29 @@ import streamlit as st
 import yt_dlp
 import os
 import subprocess
-import requests
 import shutil
 
-# Function to download FFmpeg
-def download_ffmpeg():
-    ffmpeg_url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-lgpl-7.1.zip"
-    ffmpeg_zip = "ffmpeg.zip"
-    ffmpeg_extract_dir = "ffmpeg"
-    ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg.exe")
-
-    # Download the FFmpeg zip file if it doesn't already exist
-    if not os.path.exists(ffmpeg_zip):
-        response = requests.get(ffmpeg_url, stream=True)
-        with open(ffmpeg_zip, "wb") as f:
-            shutil.copyfileobj(response.raw, f)
-
-    # Extract the FFmpeg zip file if the folder doesn't exist
-    if not os.path.exists(ffmpeg_extract_dir):
-        shutil.unpack_archive(ffmpeg_zip, ffmpeg_extract_dir)
-
-    # Search for ffmpeg.exe within the extracted folder
-    ffmpeg_extracted_path = None
-    for root, dirs, files in os.walk(ffmpeg_extract_dir):
-        if "ffmpeg.exe" in files:
-            ffmpeg_extracted_path = os.path.join(root, "ffmpeg.exe")
-            break
-
-    if not ffmpeg_extracted_path:
-        raise FileNotFoundError("FFmpeg executable not found in the extracted files.")
-
-    # Move the FFmpeg executable to the working directory if it doesn't already exist
-    if not os.path.exists(ffmpeg_path):
-        shutil.move(ffmpeg_extracted_path, ffmpeg_path)
-
-    return ffmpeg_path
+# Function to locate FFmpeg
+def find_ffmpeg():
+    # Check if FFmpeg is in the system PATH
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        return ffmpeg_path
+    
+    # Specify the default path for FFmpeg if it's not in PATH
+    ffmpeg_default_path = r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\ffmpeg-n7.1-latest-win64-lgpl-7.1\bin\ffmpeg.exe"
+    if os.path.exists(ffmpeg_default_path):
+        return ffmpeg_default_path
+    
+    raise FileNotFoundError("FFmpeg not found in PATH or at the specified directory. Please ensure FFmpeg is installed.")
 
 # Function to list available formats
 def list_formats(url):
     try:
-        opts = {'listformats': True}
+        opts = {
+            'ffmpeg_location': find_ffmpeg(),  # Specify FFmpeg path
+            'listformats': True
+        }
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = [
@@ -53,6 +36,7 @@ def list_formats(url):
                     "ext": fmt['ext']
                 }
                 for fmt in info.get('formats', [])
+                if fmt.get('ext') == 'mp4'
             ]
             return formats
     except yt_dlp.utils.DownloadError as e:
@@ -61,10 +45,9 @@ def list_formats(url):
         return f"Unexpected error: {e}"
 
 # Function to download and merge video and audio
-def download_video(url, format_id, output_filename, ffmpeg_path):
-    video_file = f"{output_filename}_video.mp4"
-    audio_file = f"{output_filename}_audio.mp4"
-    output_file = f"{output_filename}.mp4"
+def download_video(url, format_id, output_filename):
+    downloads_folder_video = os.path.join(os.getcwd(), f"{output_filename}_video.mp4")
+    downloads_folder_audio = os.path.join(os.getcwd(), f"{output_filename}_audio.mp4")
     progress_bar = st.progress(0)
 
     def progress_hook(d):
@@ -72,37 +55,57 @@ def download_video(url, format_id, output_filename, ffmpeg_path):
             total = d.get('total_bytes', 1)
             downloaded = d.get('downloaded_bytes', 0)
             progress = downloaded / total if total > 0 else 0
-            progress = max(0.0, min(1.0, progress))
+            progress = max(0.0, min(1.0, progress))  # Ensure it's within 0.0 to 1.0
             progress_bar.progress(progress)
         elif d['status'] == 'finished':
             progress_bar.progress(1.0)
 
     try:
-        # Download video
-        opts_video = {'format': format_id, 'outtmpl': video_file, 'progress_hooks': [progress_hook]}
-        with yt_dlp.YoutubeDL(opts_video) as ydl:
-            ydl.download([url])
+        # Download Video
+        opts_video = {
+            'ffmpeg_location': find_ffmpeg(),  # Specify FFmpeg path
+            'outtmpl': downloads_folder_video,
+            'format': f"{format_id}",
+            'progress_hooks': [progress_hook],
+        }
 
-        # Download audio
-        opts_audio = {'format': 'bestaudio/best', 'outtmpl': audio_file, 'progress_hooks': [progress_hook]}
-        with yt_dlp.YoutubeDL(opts_audio) as ydl:
-            ydl.download([url])
+        # Download Audio
+        opts_audio = {
+            'ffmpeg_location': find_ffmpeg(),  # Specify FFmpeg path
+            'outtmpl': downloads_folder_audio,
+            'format': 'bestaudio/best',
+            'progress_hooks': [progress_hook],
+        }
 
-        # Merge video and audio
+        # Download video and audio separately
+        with yt_dlp.YoutubeDL(opts_video) as ydl_video:
+            ydl_video.download([url])
+
+        with yt_dlp.YoutubeDL(opts_audio) as ydl_audio:
+            ydl_audio.download([url])
+
+        # Merge the video and audio using ffmpeg
+        output_file = os.path.join(os.getcwd(), f"{output_filename}.mp4")
         ffmpeg_command = [
-            ffmpeg_path,
-            "-i", video_file,
-            "-i", audio_file,
-            "-c:v", "copy",
+            find_ffmpeg(),
+            "-i", downloads_folder_video,
+            "-i", downloads_folder_audio,
+            "-c:v", "copy", 
             "-c:a", "aac",
             "-strict", "experimental",
             output_file
         ]
-        subprocess.run(ffmpeg_command, check=True)
+        
+        process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
 
-        # Cleanup
-        os.remove(video_file)
-        os.remove(audio_file)
+        if process.returncode != 0:
+            error_message = stderr.decode()
+            return f"FFmpeg Error: {error_message}"
+
+        # Cleanup temporary video and audio files
+        os.remove(downloads_folder_video)
+        os.remove(downloads_folder_audio)
 
         return output_file
     except yt_dlp.utils.DownloadError as e:
@@ -114,24 +117,27 @@ def download_video(url, format_id, output_filename, ffmpeg_path):
 st.title("YouTube Video Downloader")
 
 url = st.text_input("Enter the YouTube URL")
+
 if url:
-    st.write("Fetching video formats...")
+    st.write("Fetching video formats, please wait...")
     formats = list_formats(url)
 
-    if isinstance(formats, str):
+    if isinstance(formats, str):  # Handle errors
         st.error(formats)
-    elif formats:
+    elif formats:  # Display available formats if fetched successfully
         st.write("Available formats:")
         for fmt in formats:
-            st.write(f"ID: {fmt['id']} | Resolution: {fmt['resolution']} | FPS: {fmt['fps']} | Filesize: {fmt['filesize']} | Extension: {fmt['ext']}")
+            st.write(
+                f"ID: {fmt['id']} | Resolution: {fmt['resolution']} | FPS: {fmt['fps']} | Filesize: {fmt['filesize']} | Extension: {fmt['ext']}"
+            )
 
+        # Input fields for format and filename
         format_id = st.text_input("Enter the Format ID to download")
         output_filename = st.text_input("Enter the desired output filename (without extension)")
 
         if st.button("Download"):
             if format_id and output_filename:
-                ffmpeg_path = download_ffmpeg()
-                result = download_video(url, format_id, output_filename, ffmpeg_path)
+                result = download_video(url, format_id, output_filename)
                 if os.path.exists(result):
                     st.success("Download completed successfully! Use the button below to save your file.")
                     with open(result, "rb") as file:
