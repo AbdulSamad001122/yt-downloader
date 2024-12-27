@@ -2,15 +2,24 @@ import streamlit as st
 import yt_dlp
 import os
 import subprocess
-import shutil
 
 # Function to locate FFmpeg
 def find_ffmpeg():
-    # Adjust the path based on your current structure
-    ffmpeg_default_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg-n7.1-latest-win64-lgpl-7.1", "bin", "ffmpeg.exe")
+    # Adjust the path based on your current structure for Windows
+    ffmpeg_default_path = os.path.join(os.getcwd(), "ffmpeg", "bin", "ffmpeg.exe")  # Path updated for Windows
     if os.path.exists(ffmpeg_default_path):
+        unblock_ffmpeg(ffmpeg_default_path)  # Ensure FFmpeg is not blocked by Windows
         return ffmpeg_default_path
     raise FileNotFoundError("FFmpeg not found in the specified directory. Please ensure FFmpeg is included in your project.")
+
+# Function to unblock FFmpeg if it's blocked by Windows security
+def unblock_ffmpeg(ffmpeg_path):
+    """Unblocks the ffmpeg executable in case Windows blocks it for security reasons."""
+    try:
+        if os.path.exists(ffmpeg_path):
+            os.system(f"powershell -Command Unblock-File -Path {ffmpeg_path}")
+    except Exception as e:
+        print(f"Error unblocking FFmpeg: {e}")
 
 # Function to list available formats
 def list_formats(url):
