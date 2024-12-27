@@ -2,24 +2,24 @@ import streamlit as st
 import yt_dlp
 import os
 import subprocess
+import shutil
 
-# Function to locate FFmpeg
+# Use the local FFmpeg path
+FFMPEG_PATH = r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\bin\ffmpeg.exe"
+
+# Function to check if FFmpeg is present and return its path
 def find_ffmpeg():
-    # Adjust the path based on your current structure for Windows
-    ffmpeg_default_path = os.path.join(os.getcwd(), "ffmpeg", "bin", "ffmpeg.exe")  # Path updated for Windows
-    if os.path.exists(ffmpeg_default_path):
-        unblock_ffmpeg(ffmpeg_default_path)  # Ensure FFmpeg is not blocked by Windows
-        return ffmpeg_default_path
-    raise FileNotFoundError("FFmpeg not found in the specified directory. Please ensure FFmpeg is included in your project.")
-
-# Function to unblock FFmpeg if it's blocked by Windows security
-def unblock_ffmpeg(ffmpeg_path):
-    """Unblocks the ffmpeg executable in case Windows blocks it for security reasons."""
-    try:
-        if os.path.exists(ffmpeg_path):
-            os.system(f"powershell -Command Unblock-File -Path {ffmpeg_path}")
-    except Exception as e:
-        print(f"Error unblocking FFmpeg: {e}")
+    if os.path.exists(FFMPEG_PATH):
+        st.write(f"FFmpeg found at: {FFMPEG_PATH}")
+        return FFMPEG_PATH
+    else:
+        ffmpeg_in_path = shutil.which("ffmpeg")
+        if ffmpeg_in_path:
+            st.write(f"FFmpeg found in system PATH at: {ffmpeg_in_path}")
+            return ffmpeg_in_path
+        else:
+            st.error("FFmpeg not found in the specified directory or system PATH.")
+            return None
 
 # Function to list available formats
 def list_formats(url):
