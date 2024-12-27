@@ -6,17 +6,11 @@ import shutil
 
 # Function to locate FFmpeg
 def find_ffmpeg():
-    # Check if FFmpeg is in the system PATH
-    ffmpeg_path = shutil.which("ffmpeg")
-    if ffmpeg_path:
-        return ffmpeg_path
-    
-    # Specify the default path for FFmpeg if it's not in PATH
-    ffmpeg_default_path = r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\ffmpeg-n7.1-latest-win64-lgpl-7.1\bin\ffmpeg.exe"
+    # Adjust the path based on your current structure
+    ffmpeg_default_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg-n7.1-latest-win64-lgpl-7.1", "bin", "ffmpeg.exe")
     if os.path.exists(ffmpeg_default_path):
         return ffmpeg_default_path
-    
-    raise FileNotFoundError("FFmpeg not found in PATH or at the specified directory. Please ensure FFmpeg is installed.")
+    raise FileNotFoundError("FFmpeg not found in the specified directory. Please ensure FFmpeg is included in your project.")
 
 # Function to list available formats
 def list_formats(url):
