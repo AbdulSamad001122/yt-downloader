@@ -1,4 +1,4 @@
-yt-dlp
-streamlit
-requests
-ffmpeg-python
+yt-dlp==2023.09.24
+streamlit==1.26.0
+requests==2.31.0
+ffmpeg-python==0.2.0
