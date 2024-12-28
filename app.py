@@ -39,7 +39,7 @@ def list_formats(url):
                     "ext": fmt['ext']
                 }
                 for fmt in info.get('formats', [])
-                if fmt.get('ext') == 'mp4'
+                if fmt.get('ext') == 'mp4'  # Only mp4 formats
             ]
             return formats
     except yt_dlp.utils.DownloadError as e:
