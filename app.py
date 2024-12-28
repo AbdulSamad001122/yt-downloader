@@ -59,9 +59,10 @@ def download_video(url, format_id, output_filename):
             downloaded = d.get('downloaded_bytes', 0)
             progress = downloaded / total if total > 0 else 0
             progress = max(0.0, min(1.0, progress))  # Ensure it's within 0.0 to 1.0
+            progress = round(progress * 100)  # Convert to percentage
             progress_bar.progress(progress)
         elif d['status'] == 'finished':
-            progress_bar.progress(1.0)
+            progress_bar.progress(100)
 
     try:
         # Download Video
@@ -80,10 +81,11 @@ def download_video(url, format_id, output_filename):
             'progress_hooks': [progress_hook],
         }
 
-        # Download video and audio separately
+        st.write("Downloading video...")
         with yt_dlp.YoutubeDL(opts_video) as ydl_video:
             ydl_video.download([url])
 
+        st.write("Downloading audio...")
         with yt_dlp.YoutubeDL(opts_audio) as ydl_audio:
             ydl_audio.download([url])
 
@@ -99,11 +101,13 @@ def download_video(url, format_id, output_filename):
             output_file
         ]
         
+        st.write("Merging video and audio...")
         process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
 
         if process.returncode != 0:
             error_message = stderr.decode()
+            st.error(f"FFmpeg Error: {error_message}")
             return f"FFmpeg Error: {error_message}"
 
         # Cleanup temporary video and audio files
@@ -129,17 +133,24 @@ if url:
         st.error(formats)
     elif formats:  # Display available formats if fetched successfully
         st.write("Available formats:")
+        
+        # Create a button for each format to select it with a unique key
         for fmt in formats:
-            st.write(
-                f"ID: {fmt['id']} | Resolution: {fmt['resolution']} | FPS: {fmt['fps']} | Filesize: {fmt['filesize']} | Extension: {fmt['ext']}"
-            )
+            format_key = f"download_button_{fmt['id']}"  # Unique key based on format ID
+            if st.button(f"Download {fmt['resolution']} ({fmt['fps']} FPS)", key=format_key):
+                st.session_state.selected_format = fmt
+                st.write(f"Selected Format: {fmt['resolution']} ({fmt['fps']} FPS)")
 
-        # Input fields for format and filename
-        format_id = st.text_input("Enter the Format ID to download")
+        # Input fields for output filename
         output_filename = st.text_input("Enter the desired output filename (without extension)")
 
-        if st.button("Download"):
-            if format_id and output_filename:
+        # Check if the format is selected before allowing download
+        if 'selected_format' in st.session_state and st.session_state.selected_format:
+            selected_format = st.session_state.selected_format
+            st.write(f"Selected Format: {selected_format['resolution']} ({selected_format['fps']} FPS)")
+
+            if st.button("Download") and output_filename:
+                format_id = selected_format['id']
                 result = download_video(url, format_id, output_filename)
                 if os.path.exists(result):
                     st.success("Download completed successfully! Use the button below to save your file.")
@@ -152,7 +163,7 @@ if url:
                         )
                 else:
                     st.error(f"An error occurred: {result}")
-            else:
-                st.error("Please enter both a valid Format ID and a filename.")
+        else:
+            st.warning("Please select a format before downloading.")
     else:
         st.warning("No formats found. Please check the URL or try another video.")
