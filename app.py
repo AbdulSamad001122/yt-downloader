@@ -5,7 +5,7 @@ import subprocess
 import shutil
 
 # Use the local FFmpeg path
-FFMPEG_PATH = r"C:\Users\Abdul Samad\Desktop\Abdul Samad\Projects\yt-downloader\ffmpeg\bin\ffmpeg.exe"
+FFMPEG_PATH = r"E:\Projects\yt-downloader\ffmpeg\bin\ffmpeg.exe"
 
 # Function to check if FFmpeg is present and return its path
 def find_ffmpeg():
